@@ -1,0 +1,293 @@
+setwd("~/Desktop/Desktop/R Data Directory ")
+
+library(haven)
+library(randomForestSRC)
+library(fastDummies)
+library(akima)
+
+raw = read.csv('rawdata.csv')
+names(raw)[1] = 'revenue'
+valid = raw[which(is.na(raw$churndep)),]
+calibra = raw[which(is.na(raw$churndep)==F),]
+
+#randomly choose a value to substitue missing value#
+rand.impute <- function(a) {
+  missing <- is.na(a)
+  n.missing <- sum(missing)
+  a.obs <- a[!missing]
+  imputed <- a
+  imputed[missing] <- sample (a.obs, n.missing, replace=TRUE)
+  return (imputed)
+}
+random.impute.data.frame <- function(dat, cols) {
+  nms <- names(dat)
+  for(col in cols) {
+    name <- nms[col]
+    dat[name] <- rand.impute(dat[,col])
+  }
+  dat
+}
+
+#Calibra -------
+#dealing with missing values 
+calibra$revenue = ifelse(is.na(calibra$revenue), mean(calibra$revenue, na.rm = T), calibra$revenue)
+calibra$mou = ifelse(is.na(calibra$mou), mean(calibra$mou, na.rm = T), calibra$mou)
+calibra$recchrge = ifelse(is.na(calibra$recchrge), mean(calibra$recchrge, na.rm = T), calibra$recchrge)
+calibra$directas = ifelse(is.na(calibra$directas), mean(calibra$directas, na.rm = T), calibra$directas)
+calibra$overage = ifelse(is.na(calibra$overage), mean(calibra$overage, na.rm = T), calibra$overage)
+calibra$roam = ifelse(is.na(calibra$roam), mean(calibra$roam, na.rm = T), calibra$roam)
+calibra$changem = ifelse(is.na(calibra$changem), mean(calibra$changem, na.rm = T), calibra$changem)
+calibra$changer = ifelse(is.na(calibra$changer), mean(calibra$changer, na.rm = T), calibra$changer)
+
+calibra$age1 = ifelse(is.na(calibra$age1), round(mean(calibra$age1, na.rm = T)), calibra$age1)
+calibra$age2 = ifelse(is.na(calibra$age2), round(mean(calibra$age2, na.rm = T)), calibra$age2)
+
+
+#phone, models, eqpdays
+calibra = random.impute.data.frame(calibra,c(27:29))
+
+#regroup csa
+#larger than 1% into a group#
+calibra$csa_grp = ifelse(calibra$csa == "APCFCH703", "APCFCH703",
+                         ifelse(calibra == "APCSIL301","APCSIL301",
+                                ifelse(calibra$csa == "ATLANE678", "ATLANE678",
+                                       ifelse(calibra$csa == "DALDAL214", "DALDAL214",
+                                              ifelse(calibra$csa == "DALFTW817", "DALFTW817",
+                                                     ifelse(calibra$csa == "HOUHOU281", "HOUHOU281",
+                                                            ifelse(calibra$csa == "NYCBRO917", "NYCBRO917",
+                                                                   ifelse(calibra$csa == "NYCQUE917", "NYCQUE917",
+                                                                          ifelse(calibra$csa == "PHXPHX602", "PHXPHX602",
+                                                                                 ifelse(calibra$csa == "SANAUS512", "SANAUS512",
+                                                                                        ifelse(calibra$csa == "SANSAN210", "SANSAN210",
+                                                                                               ifelse(calibra$csa == "SFROAK510", "SFROAK510",
+                                                                                                      ifelse(calibra$csa == "SFRSCL408", "SFRSCL408",
+                                                                                                             ifelse(calibra$csa == "SFRSFR415","SFRSFR415","Others"))))))))))))))             
+
+calibra$phones_grp = ifelse(calibra$phones == 1, "one",
+                            ifelse(calibra$phones == 2, "two",
+                                   ifelse(calibra$phones == 3, "three",
+                                          ifelse(calibra$phones ==4, "four",
+                                                 ifelse(calibra$phones ==5, "five", "others")))))
+calibra$models_grp = ifelse(calibra$models == 1, "one",
+                            ifelse(calibra$models == 2, "two",
+                                   ifelse(calibra$models == 3, "three",
+                                          ifelse(calibra$models ==4, "four","others"))))
+
+
+#create dummy for factors#
+calibra = dummy_cols(calibra, select_columns = c("csa_grp", "phones_grp", "models_grp"))
+calibra = calibra[,!colnames(calibra) %in% c("customer", "csa", "calibrat", "churndep","csa_grp", "phones_grp", "models_grp", 'phones', 'models')]
+
+write.csv(calibra, 'train.csv', row.names = F)
+
+#test ------
+valid$revenue = ifelse(is.na(valid$revenue), mean(valid$revenue, na.rm = T), valid$revenue)
+valid$mou = ifelse(is.na(valid$mou), mean(valid$mou, na.rm = T), valid$mou)
+valid$recchrge = ifelse(is.na(valid$recchrge), mean(valid$recchrge, na.rm = T), valid$recchrge)
+valid$directas = ifelse(is.na(valid$directas), mean(valid$directas, na.rm = T), valid$directas)
+
+valid$overage = ifelse(is.na(valid$overage), mean(valid$overage, na.rm = T), valid$overage)
+valid$roam = ifelse(is.na(valid$roam), mean(valid$roam, na.rm = T), valid$roam)
+valid$changem = ifelse(is.na(valid$changem), mean(valid$changem, na.rm = T), valid$changem)
+valid$changer = ifelse(is.na(valid$changer), mean(valid$changer, na.rm = T), valid$changer)
+
+#csa, phone, models
+valid = random.impute.data.frame(valid,c(27,28,29))
+
+valid$age1 = ifelse(is.na(valid$age1), round(mean(valid$age1, na.rm = T)), valid$age1)
+valid$age2 = ifelse(is.na(valid$age2), round(mean(valid$age2, na.rm = T)), valid$age2)
+
+
+#regroup csa#
+#larger than 1% into a group#
+valid$phones_grp = ifelse(valid$phones == 1, "one",
+                          ifelse(valid$phones == 2, "two",
+                                 ifelse(valid$phones == 3, "three",
+                                        ifelse(valid$phones ==4, "four",
+                                               ifelse(valid$phones ==5, "five", "others")))))
+valid$models_grp = ifelse(valid$models == 1, "one",
+                          ifelse(valid$models == 2, "two",
+                                 ifelse(valid$models == 3, "three",
+                                        ifelse(valid$models ==4, "four","others"))))
+
+valid$csa_grp = ifelse(valid$csa == "APCFCH703", "APCFCH703",
+                       ifelse(valid == "APCSIL301","APCSIL301",
+                              ifelse(valid$csa == "ATLANE678", "ATLANE678",
+                                     ifelse(valid$csa == "DALDAL214", "DALDAL214",
+                                            ifelse(valid$csa == "DALFTW817", "DALFTW817",
+                                                   ifelse(valid$csa == "HOUHOU281", "HOUHOU281",
+                                                          ifelse(valid$csa == "NYCBRO917", "NYCBRO917",
+                                                                 ifelse(valid$csa == "NYCQUE917", "NYCQUE917",
+                                                                        ifelse(valid$csa == "PHXPHX602", "PHXPHX602",
+                                                                               ifelse(valid$csa == "SANAUS512", "SANAUS512",
+                                                                                      ifelse(valid$csa == "SANSAN210", "SANSAN210",
+                                                                                             ifelse(valid$csa == "SFROAK510", "SFROAK510",
+                                                                                                    ifelse(valid$csa == "SFRSCL408", "SFRSCL408",
+                                                                                                           ifelse(valid$csa == "SFRSFR415","SFRSFR415","Others"))))))))))))))
+
+valid = dummy_cols(valid, select_columns = c("csa_grp", "phones_grp", "models_grp"))
+valid = valid[,!colnames(valid) %in% c("customer", "csa", "calibrat", "churndep","csa_grp", "phones_grp", "models_grp", 'phones', 'models')]
+
+write.csv(valid, 'test.csv', row.names = F)
+
+# Churn Prediction Modeling 
+library(corrplot)
+library(caret)
+library(glmnet)
+library(pROC)
+library(dplyr)
+library(car)
+library(randomForestSRC)
+library(xgboost)
+library(MLmetrics)
+library(ggplot2)
+
+lift <- function(depvar, predcol, groups=10) {
+  if(is.factor(depvar)) depvar <- as.integer(as.character(depvar))
+  if(is.factor(predcol)) predcol <- as.integer(as.character(predcol))
+  helper = data.frame(cbind(depvar, predcol))
+  helper[,"bucket"] = ntile(-helper[,"predcol"], groups)
+  gaintable = helper %>% group_by(bucket)  %>%
+    summarise_at(vars(depvar), funs(total = n(),
+                                    totalresp=sum(., na.rm = TRUE))) %>%
+    mutate(Cumresp = cumsum(totalresp),
+           Gain=Cumresp/sum(totalresp)*100,
+           Cumlift=Gain/(bucket*(100/groups)))
+  return(gaintable)
+}
+
+mytrain = read.csv('train.csv')
+mytrain = mytrain[, !(names(mytrain) %in% c('creditz', 'marryno', 'csa_grp_ATLANE678', 'phones_grp_five', 'models_grp_others'))]
+mytrain = mytrain[, !(names(mytrain) %in% c('phones_grp_one', 'models_grp_one', 'dropblk','setprcm', 'mailres', 'csa_grp_Others', 'retcalls', 'retcall'))]
+
+mytest = read.csv('test.csv')
+
+mytrain.x = mytrain[,!(names(mytrain) %in% c('churn'))]
+mytrain.y = mytrain$churn
+mytest.x = mytest[,!(names(mytest) %in% c('churn'))]
+mytest.y = mytest$churn
+
+#logistic ------
+mytrain.logi = mytrain[, !(names(mytrain) %in% c('directas', 'mourec', 'opeakvce', 'credita', 'creditgy', 'rv', 'ownrent', 'travel', 'newcelln', 'csa_grp_NYCQUE917', 'models_grp_three'))]
+mylog = glm(churn ~ ., data=mytrain.logi, family=binomial(link="logit"))
+mypred.logi = predict(mylog, mytest.x, type = 'response')
+mypred.logi = as.numeric(mypred.logi)
+mypred.logi.class = ifelse(mypred.logi > 0.5, 1, 0)
+mypred.high.risk = ifelse(mypred.logi > 0.75, 1, 0)
+mean(mypred.high.risk)
+
+Recall(mytest.y, mypred.logi.class)
+
+#importance
+summary(mylog)
+mylogi.coef = coef(summary(mylog))
+mylogi.coef = as.data.frame(mylogi.coef)
+var = as.character(row.names(coef(summary(mylog))))
+mylogi.coef = cbind(mylogi.coef, var)
+mylogi.coef$var = as.character(levels(mylogi.coef$var))[mylogi.coef$var]
+
+mylogi.std = apply(mytrain.x, 2, sd)
+mylogi.std = cbind(names(mytrain.x), mylogi.std)
+mylogi.std = as.data.frame(mylogi.std)
+names(mylogi.std) = c('var', 'sd')
+mylogi.std$sd = as.numeric(levels(mylogi.std$sd))[mylogi.std$sd]
+mylogi.std$var = as.character(levels(mylogi.std$var))[mylogi.std$var]
+
+mylogi.coef = merge(mylogi.coef, mylogi.std, by = 'var', all.x = T)
+
+mylogi.coef = mylogi.coef[-1,]
+mylogi.coef = mylogi.coef[mylogi.coef$`Pr(>|z|)` <= 0.5,]
+
+mylogi.coef$importance = exp(mylogi.coef$sd * mylogi.coef$Estimate)
+mylogi.coef$importance = abs(mylogi.coef$importance - 1)
+
+mylogi.coef = mylogi.coef[order(mylogi.coef$importance, decreasing = T),]
+mylogi.coef$odds = exp(mylogi.coef$sd * mylogi.coef$Estimate) - 1
+mylogi.coef$odds = ifelse(mylogi.coef$odds>0, 'increase churn rate', 'decrease churn rate')
+mylogi.coef$odds = factor(mylogi.coef$odds, levels = c('increase churn rate', 'decrease churn rate'))
+
+ggplot(mylogi.coef[c(1:15),], aes(x = reorder(var, importance), y = importance))+
+  geom_col(aes(fill = odds)) +
+  theme(legend.position="top",
+        plot.title = element_text(hjust = 0)) +
+  coord_flip()
+
+modelroc =  roc(mytest.y, mypred.logi)
+plot(modelroc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col = c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col = "skyblue", print.thres=TRUE)
+
+lift.logi = lift(mytest.y, mypred.logi, groups = 100)
+lift.logi$Method = "logistic regression"
+
+mypred.rf = read.csv('pred_rf.csv')
+mypred.rf = as.vector(mypred.rf$x)
+lift.rf = lift(mytest.y, mypred.rf, groups = 100)
+lift.rf$Method = "random forest"
+
+lift.xbg = read.csv('xgb_lift.csv')
+lift.xbg = lift.xbg[,-1]
+lift.xbg$Method = "XGBoost"
+
+lift.all = rbind(lift.logi, lift.rf, lift.xbg)
+ggplot(data = lift.all, aes(x = bucket, y = Cumlift)) + 
+  geom_line(aes(colour = Method)) +
+  scale_x_continuous(name="Sample Porpotion (%)", limits=c(0,100), breaks = seq(0,100,10)) +
+  scale_y_continuous(name="Lift", limits=c(1,4), breaks = seq(1,4,0.5)) + 
+  theme(legend.position="top",
+        plot.title = element_text(hjust = 0.3)) + 
+  ggtitle("Lift Curves for Different Machine Learning Techniques") 
+
+##random forest##
+train = read.csv("train(1).csv")
+test = read.csv("test(1).csv")
+rf = tune(churn~., train)
+rf.tune = rfsrc(churn ~., train, nodesize = 30, mtry = 75, importance = T)
+
+pred = predict(rf.tune,test)
+lift.rf = lift(test$churn, pred$predicted,groups = 100)
+ggplot(data = lift.rf, aes(x = bucket, y = Cumlift)) + 
+  geom_line(aes(colour = "Method")) +
+  scale_x_continuous(name="Sample Porpotion (%)", limits=c(0,100), breaks = seq(0,100,10)) +
+  scale_y_continuous(name="Lift", limits=c(1,4), breaks = seq(1,4,0.5)) + 
+  theme(legend.position="top",
+        plot.title = element_text(hjust = 0.3)) + 
+  ggtitle("Lift Curves for Different Machine Learning Techniques") 
+write.csv(pred$predicted, file = "pred_rf.csv")
+write.csv(rf.tune$importance, file = "importance.csv")
+rf.churn = ifelse(pred$predicted > 0.5, 1, 0)
+rf.roc =  roc(test$churn, pred$predicted)
+plot(rf.roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col = c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col = "skyblue", print.thres=TRUE)
+
+##XGBoost##
+churn = train$churn
+train.data = as.matrix(train[,!colnames(train)%in%c("churn")])
+train.label = as.integer(train$churn)
+
+# Transform the two data sets into xgb.Matrix
+xgb.train = xgb.DMatrix(data=train.data,label=train.label)
+finmod = xgboost(data=xgb.train,nthread=6,max.depth=3,eta=.05,nround=200,objective="binary:logistic",eval_metric="auc")
+mat <- xgb.importance (feature_names = colnames(train.data),model = finmod)
+xgb.ggplot.importance(importance_matrix = mat[1:15], rel_to_first = TRUE)
+name = finmod$feature_names
+test.x = test[,!colnames(test)%in%c("churn")]
+test.x = test.x[, name]
+test.data = as.matrix(test.x)
+phat = predict(finmod,test.data)
+xgb.roc =  roc(test$churn, phat)
+plot(xgb.roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col = c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col = "skyblue", print.thres=TRUE)
+
+lift.xgboost = lift(test$churn, phat,groups = 100)
+ggplot(data = lift.xgboost, aes(x = bucket, y = Cumlift)) + 
+  geom_line(aes(colour = "Method")) +
+  scale_x_continuous(name="Sample Porpotion (%)", limits=c(0,100), breaks = seq(0,100,10)) +
+  scale_y_continuous(name="Lift", limits=c(1,4), breaks = seq(1,4,0.5)) + 
+  theme(legend.position="top",
+        plot.title = element_text(hjust = 0.3)) + 
+  ggtitle("Lift Curves for Different Machine Learning Techniques") 
+write.csv(lift.xgboost, file = "xgb_lift.csv")
+Recall(y_pred = ifelse(phat > 0.5, 1, 0), y_true = test$churn)
