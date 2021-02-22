@@ -11,19 +11,19 @@ valid = raw[which(is.na(raw$churndep)),]
 calibra = raw[which(is.na(raw$churndep)==F),]
 
 #randomly choose a value to substitue missing value#
-rand.impute <- function(a) {
-  missing <- is.na(a)
-  n.missing <- sum(missing)
-  a.obs <- a[!missing]
-  imputed <- a
-  imputed[missing] <- sample (a.obs, n.missing, replace=TRUE)
+rand.impute = function(a) {
+  missing = is.na(a)
+  n.missing = sum(missing)
+  a.obs = a[!missing]
+  imputed = a
+  imputed[missing] = sample (a.obs, n.missing, replace=TRUE)
   return (imputed)
 }
-random.impute.data.frame <- function(dat, cols) {
-  nms <- names(dat)
+random.impute.data.frame = function(dat, cols) {
+  nms = names(dat)
   for(col in cols) {
-    name <- nms[col]
-    dat[name] <- rand.impute(dat[,col])
+    name = nms[col]
+    dat[name] = rand.impute(dat[,col])
   }
   dat
 }
@@ -130,7 +130,7 @@ valid = valid[,!colnames(valid) %in% c("customer", "csa", "calibrat", "churndep"
 
 write.csv(valid, 'test.csv', row.names = F)
 
-# Churn Prediction Modeling 
+#Churn Prediction Modeling#
 library(corrplot)
 library(caret)
 library(glmnet)
