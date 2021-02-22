@@ -167,6 +167,15 @@ mytrain.y = mytrain$churn
 mytest.x = mytest[,!(names(mytest) %in% c('churn'))]
 mytest.y = mytest$churn
 
+#lasso -------
+# mylm = lm(churn~., data = mytrain)
+# myvif = vif(mylm)
+# myvif = sort(myvif, decreasing = T)
+# myvif
+
+cvfit = cv.glmnet(as.matrix(mytrain.x), mytrain.y,family="binomial", type.measure = 'auc', nfolds = 15)
+cvfit.coef = coef(cvfit, s = "lambda.min")
+
 #logistic ------
 mytrain.logi = mytrain[, !(names(mytrain) %in% c('directas', 'mourec', 'opeakvce', 'credita', 'creditgy', 'rv', 'ownrent', 'travel', 'newcelln', 'csa_grp_NYCQUE917', 'models_grp_three'))]
 mylog = glm(churn ~ ., data=mytrain.logi, family=binomial(link="logit"))
