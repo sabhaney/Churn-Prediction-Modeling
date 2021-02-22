@@ -142,9 +142,9 @@ library(xgboost)
 library(MLmetrics)
 library(ggplot2)
 
-lift <- function(depvar, predcol, groups=10) {
-  if(is.factor(depvar)) depvar <- as.integer(as.character(depvar))
-  if(is.factor(predcol)) predcol <- as.integer(as.character(predcol))
+lift = function(depvar, predcol, groups=10) {
+  if(is.factor(depvar)) depvar = as.integer(as.character(depvar))
+  if(is.factor(predcol)) predcol = as.integer(as.character(predcol))
   helper = data.frame(cbind(depvar, predcol))
   helper[,"bucket"] = ntile(-helper[,"predcol"], groups)
   gaintable = helper %>% group_by(bucket)  %>%
@@ -167,7 +167,7 @@ mytrain.y = mytrain$churn
 mytest.x = mytest[,!(names(mytest) %in% c('churn'))]
 mytest.y = mytest$churn
 
-#lasso -------
+#lasso ------- to choose the variables 
 # mylm = lm(churn~., data = mytrain)
 # myvif = vif(mylm)
 # myvif = sort(myvif, decreasing = T)
@@ -215,12 +215,14 @@ mylogi.coef$odds = exp(mylogi.coef$sd * mylogi.coef$Estimate) - 1
 mylogi.coef$odds = ifelse(mylogi.coef$odds>0, 'increase churn rate', 'decrease churn rate')
 mylogi.coef$odds = factor(mylogi.coef$odds, levels = c('increase churn rate', 'decrease churn rate'))
 
+#Plotting the effect of different vars on churn rate# 
 ggplot(mylogi.coef[c(1:15),], aes(x = reorder(var, importance), y = importance))+
   geom_col(aes(fill = odds)) +
   theme(legend.position="top",
         plot.title = element_text(hjust = 0)) +
   coord_flip()
 
+#ROC Plot 
 modelroc =  roc(mytest.y, mypred.logi)
 plot(modelroc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
      grid.col = c("green", "red"), max.auc.polygon=TRUE,
@@ -255,16 +257,22 @@ rf.tune = rfsrc(churn ~., train, nodesize = 30, mtry = 75, importance = T)
 
 pred = predict(rf.tune,test)
 lift.rf = lift(test$churn, pred$predicted,groups = 100)
+
+#Lift Curve for Random Forest # 
 ggplot(data = lift.rf, aes(x = bucket, y = Cumlift)) + 
   geom_line(aes(colour = "Method")) +
   scale_x_continuous(name="Sample Porpotion (%)", limits=c(0,100), breaks = seq(0,100,10)) +
   scale_y_continuous(name="Lift", limits=c(1,4), breaks = seq(1,4,0.5)) + 
   theme(legend.position="top",
         plot.title = element_text(hjust = 0.3)) + 
-  ggtitle("Lift Curves for Different Machine Learning Techniques") 
+  ggtitle("Lift Curve for Random Forest") 
+
+
 write.csv(pred$predicted, file = "pred_rf.csv")
 write.csv(rf.tune$importance, file = "importance.csv")
 rf.churn = ifelse(pred$predicted > 0.5, 1, 0)
+
+#ROC plot for Random Forest 
 rf.roc =  roc(test$churn, pred$predicted)
 plot(rf.roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
      grid.col = c("green", "red"), max.auc.polygon=TRUE,
@@ -285,11 +293,8 @@ test.x = test[,!colnames(test)%in%c("churn")]
 test.x = test.x[, name]
 test.data = as.matrix(test.x)
 phat = predict(finmod,test.data)
-xgb.roc =  roc(test$churn, phat)
-plot(xgb.roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
-     grid.col = c("green", "red"), max.auc.polygon=TRUE,
-     auc.polygon.col = "skyblue", print.thres=TRUE)
 
+#Lift Curve for XG Boost 
 lift.xgboost = lift(test$churn, phat,groups = 100)
 ggplot(data = lift.xgboost, aes(x = bucket, y = Cumlift)) + 
   geom_line(aes(colour = "Method")) +
@@ -297,6 +302,14 @@ ggplot(data = lift.xgboost, aes(x = bucket, y = Cumlift)) +
   scale_y_continuous(name="Lift", limits=c(1,4), breaks = seq(1,4,0.5)) + 
   theme(legend.position="top",
         plot.title = element_text(hjust = 0.3)) + 
-  ggtitle("Lift Curves for Different Machine Learning Techniques") 
+  ggtitle("Lift Curves for XG Boost") 
 write.csv(lift.xgboost, file = "xgb_lift.csv")
 Recall(y_pred = ifelse(phat > 0.5, 1, 0), y_true = test$churn)
+
+#ROC for XG Boost 
+xgb.roc =  roc(test$churn, phat)
+plot(xgb.roc, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+     grid.col = c("green", "red"), max.auc.polygon=TRUE,
+     auc.polygon.col = "skyblue", print.thres=TRUE)
+
+
